@@ -1,0 +1,182 @@
+name: Enhanced Stock Data Scraper
+
+on:
+  schedule:
+    # 每个工作日凌晨2点UTC运行（北京时间10点）
+    - cron: '0 2 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: '股票代码（逗号分隔）'
+        required: false
+        default: 'AAPL,MSFT,GOOGL,TSLA,NVDA'
+      start_date:
+        description: '开始日期 (YYYY-MM-DD)'
+        required: false
+        default: '2024-01-01'
+      force_update:
+        description: '强制更新（即使无新数据）'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  scrape-stocks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史记录
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Check existing data
+      id: check_data
+      run: |
+        if [ -f "stock_data.csv" ]; then
+          lines=$(wc -l < stock_data.csv)
+          echo "existing_lines=$lines" >> $GITHUB_OUTPUT
+          echo "Found existing data with $lines lines"
+        else
+          echo "existing_lines=0" >> $GITHUB_OUTPUT
+          echo "No existing data file found"
+        fi
+
+    - name: Run stock scraper
+      id: scrape
+      run: |
+        # 设置环境变量
+        export TICKERS="${{ github.event.inputs.tickers || 'AAPL,MSFT,GOOGL,TSLA,NVDA' }}"
+        export START="${{ github.event.inputs.start_date || '2024-01-01' }}"
+        
+        echo "Running scraper with TICKERS=$TICKERS, START=$START"
+        
+        # 运行脚本并捕获输出
+        python scrape_stock_akshare.py > scrape_output.log 2>&1
+        
+        # 检查是否成功
+        if [ $? -eq 0 ]; then
+          echo "scrape_success=true" >> $GITHUB_OUTPUT
+          echo "Scraping completed successfully"
+        else
+          echo "scrape_success=false" >> $GITHUB_OUTPUT
+          echo "Scraping failed"
+          cat scrape_output.log
+          exit 1
+        fi
+
+    - name: Check for new data
+      id: check_new
+      run: |
+        if [ -f "stock_data.csv" ]; then
+          new_lines=$(wc -l < stock_data.csv)
+          old_lines="${{ steps.check_data.outputs.existing_lines }}"
+          
+          if [ "$new_lines" -gt "$old_lines" ] || [ "${{ github.event.inputs.force_update }}" = "true" ]; then
+            echo "has_new_data=true" >> $GITHUB_OUTPUT
+            echo "New data detected: $old_lines -> $new_lines lines"
+          else
+            echo "has_new_data=false" >> $GITHUB_OUTPUT
+            echo "No new data to commit"
+          fi
+        else
+          echo "has_new_data=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate data summary
+      if: steps.check_new.outputs.has_new_data == 'true'
+      run: |
+        echo "## 📊 数据更新摘要" > update_summary.md
+        echo "" >> update_summary.md
+        echo "- **更新时间**: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> update_summary.md
+        echo "- **股票代码**: ${{ github.event.inputs.tickers || 'AAPL,MSFT,GOOGL,TSLA,NVDA' }}" >> update_summary.md
+        echo "- **数据行数**: $(wc -l < stock_data.csv)" >> update_summary.md
+        echo "- **文件大小**: $(du -h stock_data.csv | cut -f1)" >> update_summary.md
+        echo "" >> update_summary.md
+        
+        # 显示最新几条记录
+        echo "### 📈 最新数据预览" >> update_summary.md
+        echo '```' >> update_summary.md
+        tail -5 stock_data.csv >> update_summary.md
+        echo '```' >> update_summary.md
+
+    - name: Commit and push changes
+      if: steps.check_new.outputs.has_new_data == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action Bot"
+        
+        # 添加文件
+        git add stock_data.csv
+        
+        # 创建提交信息
+        commit_msg="📊 Auto-update stock data - $(date +'%Y-%m-%d')"
+        commit_msg="$commit_msg
+
+        $(cat update_summary.md)"
+        
+        git commit -m "$commit_msg"
+        git push
+
+    - name: Upload logs as artifact
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: scraper-logs-${{ github.run_number }}
+        path: |
+          scrape_output.log
+          update_summary.md
+        retention-days: 7
+
+    - name: Create Issue on Failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = `🚨 Stock Scraper Failed - ${new Date().toISOString().split('T')[0]}`;
+          const body = `
+          ## 错误详情
+          
+          - **工作流**: ${context.workflow}
+          - **运行ID**: ${context.runId}
+          - **失败时间**: ${new Date().toISOString()}
+          - **触发方式**: ${context.eventName}
+          
+          ## 可能原因
+          
+          1. 网络连接问题
+          2. akshare API 限制
+          3. 数据格式变更
+          4. GitHub Actions 环境问题
+          
+          ## 下一步
+          
+          请检查 [Actions 日志](${context.payload.repository.html_url}/actions/runs/${context.runId}) 获取详细错误信息。
+          `;
+          
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['bug', 'automation']
+          });
