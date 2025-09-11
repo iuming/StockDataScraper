@@ -1,0 +1,9 @@
+name: stockdata
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - yfinance
+      - pandas
