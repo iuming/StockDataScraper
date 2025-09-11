@@ -8,11 +8,36 @@
 - 将数据保存到CSV文件
 - GitHub Actions每天自动运行脚本并更新数据
 
+
 ## 设置
 
 1. 克隆或下载这个仓库到本地。
 2. 安装依赖：`pip install -r requirements.txt`
 3. 运行脚本：`python scrape_stock.py`
+
+## 环境变量用法
+
+支持通过环境变量自定义：
+
+- `TICKERS`：股票代码，逗号分隔。例如：`TICKERS="AAPL,MSFT,GOOGL" python scrape_stock.py`
+- `START`：开始日期，格式如 `2023-01-01`
+- `END`：结束日期，格式如 `2025-09-11`
+
+如不指定，默认抓取AAPL最近一年数据。
+
+## 特性说明
+
+- 支持多股票批量抓取
+- 自动增量合并到 `stock_data.csv`，不会重复
+- 支持断点续抓、空数据诊断
+
+## 常见问题
+
+- 若出现 “No data found” 或数据为空，请确保：
+	1. Python 版本 >= 3.10
+	2. yfinance 已升级到最新版
+	3. 网络未被限制
+	4. 股票代码拼写正确
 
 ## GitHub Actions
 
