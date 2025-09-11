@@ -32,12 +32,12 @@ jobs:
         fetch-depth: 0  # 获取完整历史记录
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -139,7 +139,7 @@ jobs:
 
     - name: Upload logs as artifact
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: scraper-logs-${{ github.run_number }}
         path: |
@@ -149,7 +149,7 @@ jobs:
 
     - name: Create Issue on Failure
       if: failure()
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const title = `🚨 Stock Scraper Failed - ${new Date().toISOString().split('T')[0]}`;

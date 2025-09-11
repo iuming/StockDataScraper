@@ -1,0 +1,60 @@
+name: Test Stock Data Scraper
+
+on:
+  workflow_dispatch:  # 仅手动触发用于测试
+
+jobs:
+  test-scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Test stock scraper
+      run: |
+        export TICKERS="AAPL"
+        export START="2024-09-01"
+        python scrape_stock_akshare.py
+
+    - name: Check output
+      run: |
+        if [ -f "stock_data.csv" ]; then
+          echo "✅ CSV file created successfully"
+          echo "📊 Number of lines: $(wc -l < stock_data.csv)"
+          echo "📄 File size: $(du -h stock_data.csv | cut -f1)"
+          echo ""
+          echo "📋 First few lines:"
+          head -3 stock_data.csv
+        else
+          echo "❌ No CSV file found"
+          exit 1
+        fi
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ github.run_number }}
+        path: |
+          stock_data.csv
+        retention-days: 3
