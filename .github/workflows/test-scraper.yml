@@ -3,6 +3,10 @@ name: Test Stock Data Scraper
 on:
   workflow_dispatch:  # 仅手动触发用于测试
 
+# 添加权限设置
+permissions:
+  contents: read
+
 jobs:
   test-scrape:
     runs-on: ubuntu-latest

@@ -20,6 +20,12 @@ on:
         required: false
         default: false
 
+# 添加权限设置
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
 jobs:
   scrape-stocks:
     runs-on: ubuntu-latest
@@ -122,8 +128,8 @@ jobs:
     - name: Commit and push changes
       if: steps.check_new.outputs.has_new_data == 'true'
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action Bot"
+        git config --local user.email "6ming@hrbeu.edu.cn"
+        git config --local user.name "iuming"
         
         # 添加文件
         git add stock_data.csv

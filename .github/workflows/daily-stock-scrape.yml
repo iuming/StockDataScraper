@@ -5,6 +5,10 @@ on:
     - cron: '0 2 * * 1-5'  # 每个工作日凌晨2点UTC运行（避开股市休市日）
   workflow_dispatch:  # 允许手动触发
 
+# 添加权限设置
+permissions:
+  contents: write
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
@@ -39,8 +43,8 @@ jobs:
 
     - name: Commit and push data
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
+        git config --local user.email "6ming@hrbeu.edu.cn"
+        git config --local user.name "iuming"
         git add stock_data.csv
         if git diff --staged --quiet; then
           echo "No changes to commit"
